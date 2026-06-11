@@ -21,4 +21,4 @@ class Cerveza(Base):
     parent = relationship("Cerveza", remote_side=[id])
     ingredientes = relationship("CervezaIngrediente", back_populates="cerveza")
     pasos = relationship("Paso", back_populates="cerveza", order_by="Paso.orden")
-    valoraciones = relationship("Valoracion", back_populates="cerveza")
+    me_gustas = relationship("MeGusta", back_populates="cerveza")

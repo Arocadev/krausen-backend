@@ -3,31 +3,33 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, extract
 from datetime import datetime
 from app.models.base import get_db
-from app.models.valoracion import Valoracion
+from app.models.valoracion import MeGusta
 from app.models.cerveza import Cerveza
+from app.models.usuario import Usuario
 
 router = APIRouter(prefix="/api/ranking", tags=["Ranking"])
 
 @router.get("/mensual")
 def ranking_mensual(db: Session = Depends(get_db)):
     ahora = datetime.utcnow()
-    
+
     resultado = (
         db.query(
             Cerveza.id,
             Cerveza.nombre,
             Cerveza.estilo,
             Cerveza.usuario_id,
-            func.avg(Valoracion.nota).label("media"),
-            func.count(Valoracion.id).label("total_valoraciones")
+            Usuario.username,
+            func.count(MeGusta.id).label("total_likes")
         )
-        .join(Valoracion, Cerveza.id == Valoracion.cerveza_id)
+        .join(MeGusta, Cerveza.id == MeGusta.cerveza_id)
+        .join(Usuario, Cerveza.usuario_id == Usuario.id)
         .filter(
-            extract("month", Valoracion.created_at) == ahora.month,
-            extract("year", Valoracion.created_at) == ahora.year
+            extract("month", MeGusta.created_at) == ahora.month,
+            extract("year", MeGusta.created_at) == ahora.year
         )
-        .group_by(Cerveza.id, Cerveza.nombre, Cerveza.estilo, Cerveza.usuario_id)
-        .order_by(func.avg(Valoracion.nota).desc())
+        .group_by(Cerveza.id, Cerveza.nombre, Cerveza.estilo, Cerveza.usuario_id, Usuario.username)
+        .order_by(func.count(MeGusta.id).desc())
         .limit(10)
         .all()
     )
@@ -38,9 +40,8 @@ def ranking_mensual(db: Session = Depends(get_db)):
             "id": r.id,
             "nombre": r.nombre,
             "estilo": r.estilo,
-            "usuario_id": r.usuario_id,
-            "media": round(float(r.media), 1),
-            "total_valoraciones": r.total_valoraciones
+            "username": r.username,
+            "total_likes": r.total_likes
         }
         for i, r in enumerate(resultado)
     ]
