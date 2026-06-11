@@ -3,6 +3,7 @@ from sqlalchemy import func
 from fastapi import HTTPException, status
 from app.models.valoracion import Valoracion
 from app.schemas.valoracion import ValoracionCreate
+from app.models.cerveza import Cerveza
 
 def crear_valoracion(db: Session, cerveza_id: int, usuario_id: int, datos: ValoracionCreate) -> Valoracion:
     existente = db.query(Valoracion).filter(
@@ -13,6 +14,13 @@ def crear_valoracion(db: Session, cerveza_id: int, usuario_id: int, datos: Valor
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Ya has valorado esta cerveza"
+        )
+    
+    cerveza = db.query(Cerveza).filter(Cerveza.id == cerveza_id).first()
+    if cerveza and cerveza.usuario_id == usuario_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No puedes valorar tu propia cerveza"
         )
     valoracion = Valoracion(
         cerveza_id=cerveza_id,

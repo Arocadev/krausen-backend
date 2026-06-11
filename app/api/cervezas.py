@@ -3,6 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 from app.models.base import get_db
 from app.models.usuario import Usuario
+from app.models.cerveza import Cerveza
 from app.schemas.cerveza import CervezaCreate, CervezaResponse
 from app.services.cerveza_service import crear_cerveza, obtener_cervezas, obtener_cerveza, eliminar_cerveza
 from app.core.deps import get_current_user
@@ -12,6 +13,13 @@ router = APIRouter(prefix="/api/cervezas", tags=["Cervezas"])
 @router.get("/", response_model=List[CervezaResponse])
 def listar_cervezas(skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
     return obtener_cervezas(db, skip, limit)
+
+@router.get("/mis-recetas", response_model=List[CervezaResponse])
+def mis_recetas(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    return db.query(Cerveza).filter(Cerveza.usuario_id == current_user.id).all()
 
 @router.get("/{cerveza_id}", response_model=CervezaResponse)
 def detalle_cerveza(cerveza_id: int, db: Session = Depends(get_db)):
