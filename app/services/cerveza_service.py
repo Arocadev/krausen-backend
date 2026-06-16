@@ -69,3 +69,50 @@ def eliminar_cerveza(db: Session, cerveza_id: int, usuario_id: int):
         )
     db.delete(cerveza)
     db.commit()
+
+def editar_cerveza(db: Session, cerveza_id: int, datos: CervezaCreate, usuario_id: int) -> Cerveza:
+    cerveza = obtener_cerveza(db, cerveza_id)
+    if cerveza.usuario_id != usuario_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="No puedes editar una cerveza que no es tuya"
+        )
+    tiene_forks = db.query(Cerveza).filter(Cerveza.parent_id == cerveza_id).first()
+    if tiene_forks:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Esta receta tiene versiones basadas en ella y no se puede editar"
+        )
+    cerveza.nombre = datos.nombre
+    cerveza.descripcion = datos.descripcion
+    cerveza.estilo = datos.estilo
+    cerveza.litros = datos.litros
+    cerveza.alcohol = datos.alcohol
+    cerveza.amargor = datos.amargor
+
+    from app.models.ingrediente import CervezaIngrediente
+    from app.models.paso import Paso
+    db.query(CervezaIngrediente).filter(CervezaIngrediente.cerveza_id == cerveza_id).delete()
+    db.query(Paso).filter(Paso.cerveza_id == cerveza_id).delete()
+
+    for ing in datos.ingredientes:
+        ci = CervezaIngrediente(
+            cerveza_id=cerveza.id,
+            ingrediente_id=ing.ingrediente_id,
+            cantidad=ing.cantidad,
+            unidad=ing.unidad
+        )
+        db.add(ci)
+
+    for i, paso in enumerate(datos.pasos):
+        p = Paso(
+            cerveza_id=cerveza.id,
+            orden=i + 1,
+            descripcion=paso.descripcion,
+            duracion_min=paso.duracion_min
+        )
+        db.add(p)
+
+    db.commit()
+    db.refresh(cerveza)
+    return cerveza

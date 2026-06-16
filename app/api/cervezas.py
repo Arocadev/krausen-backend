@@ -20,6 +20,53 @@ def listar_cervezas(skip: int = 0, limit: int = 20, db: Session = Depends(get_db
     cervezas = db.query(Cerveza).options(joinedload(Cerveza.usuario)).offset(skip).limit(limit).all()
     return [cerveza_con_username(c) for c in cervezas]
 
+@router.get("/buscar")
+def buscar_cervezas(
+    q: str = "",
+    estilo: str = "",
+    alcohol_min: float = 0,
+    alcohol_max: float = 100,
+    amargor_min: int = 0,
+    amargor_max: int = 200,
+    skip: int = 0,
+    limit: int = 50,
+    db: Session = Depends(get_db)
+):
+    query = db.query(Cerveza).options(joinedload(Cerveza.usuario))
+
+    if q:
+        query = query.filter(Cerveza.nombre.ilike(f"%{q}%"))
+    if estilo:
+        query = query.filter(Cerveza.estilo.ilike(f"%{estilo}%"))
+    if alcohol_min > 0:
+        query = query.filter(Cerveza.alcohol >= alcohol_min)
+    if alcohol_max < 100:
+        query = query.filter(Cerveza.alcohol <= alcohol_max)
+    if amargor_min > 0:
+        query = query.filter(Cerveza.amargor >= amargor_min)
+    if amargor_max < 200:
+        query = query.filter(Cerveza.amargor <= amargor_max)
+
+    cervezas = query.order_by(Cerveza.created_at.desc()).offset(skip).limit(limit).all()
+    return [cerveza_con_username(c) for c in cervezas]
+
+@router.get("/tiene-forks/{cerveza_id}")
+def tiene_forks(cerveza_id: int, db: Session = Depends(get_db)):
+    total = db.query(Cerveza).filter(Cerveza.parent_id == cerveza_id).count()
+    return {"tiene_forks": total > 0, "total_forks": total}
+
+@router.put("/{cerveza_id}")
+def editar_cerveza_endpoint(
+    cerveza_id: int,
+    datos: CervezaCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    from app.services.cerveza_service import editar_cerveza
+    cerveza = editar_cerveza(db, cerveza_id, datos, current_user.id)
+    cerveza = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.id == cerveza.id).first()
+    return cerveza_con_username(cerveza)
+
 @router.get("/mis-recetas")
 def mis_recetas(
     db: Session = Depends(get_db),
