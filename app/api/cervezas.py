@@ -75,6 +75,21 @@ def mis_recetas(
     cervezas = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.usuario_id == current_user.id).all()
     return [cerveza_con_username(c) for c in cervezas]
 
+@router.get("/me-gustan")
+def recetas_que_me_gustan(
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    from app.models.valoracion import MeGusta
+    cervezas = (
+        db.query(Cerveza)
+        .options(joinedload(Cerveza.usuario))
+        .join(MeGusta, Cerveza.id == MeGusta.cerveza_id)
+        .filter(MeGusta.usuario_id == current_user.id)
+        .all()
+    )
+    return [cerveza_con_username(c) for c in cervezas]
+
 @router.get("/{cerveza_id}")
 def detalle_cerveza(cerveza_id: int, db: Session = Depends(get_db)):
     cerveza = db.query(Cerveza).options(

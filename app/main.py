@@ -8,6 +8,7 @@ from app.api.ingredientes import router as ingredientes_router
 from app.api.valoraciones import router as valoraciones_router
 from app.api.ranking import router as ranking_router
 from app.api.perfil import router as perfil_router
+from app.api.temperaturas import router as temperaturas_router
 
 load_dotenv()
 
@@ -31,6 +32,7 @@ app.include_router(ingredientes_router)
 app.include_router(valoraciones_router)
 app.include_router(ranking_router)
 app.include_router(perfil_router)
+app.include_router(temperaturas_router)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):

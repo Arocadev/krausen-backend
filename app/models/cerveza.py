@@ -16,9 +16,12 @@ class Cerveza(Base):
     alcohol = Column(Float, nullable=True)
     amargor = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now())
+    dias_fermentacion = Column(Integer, nullable=True)
+    intervalo_horas = Column(Integer, nullable=True)
 
     usuario = relationship("Usuario", back_populates="cervezas")
     parent = relationship("Cerveza", remote_side=[id])
     ingredientes = relationship("CervezaIngrediente", back_populates="cerveza")
     pasos = relationship("Paso", back_populates="cerveza", order_by="Paso.orden")
     me_gustas = relationship("MeGusta", back_populates="cerveza")
+    temperaturas = relationship("RegistroTemperatura", back_populates="cerveza", order_by="RegistroTemperatura.slot")

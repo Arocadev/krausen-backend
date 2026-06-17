@@ -41,6 +41,8 @@ class CervezaCreate(BaseModel):
     parent_id: Optional[int] = None
     ingredientes: List[CervezaIngredienteBase] = []
     pasos: List[PasoBase] = []
+    dias_fermentacion: Optional[int] = None
+    intervalo_horas: Optional[int] = None
 
 class CervezaResponse(BaseModel):
     id: int

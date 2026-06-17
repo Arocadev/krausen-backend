@@ -20,6 +20,8 @@ def crear_cerveza(db: Session, datos: CervezaCreate, usuario_id: int) -> Cerveza
         litros=datos.litros,
         alcohol=datos.alcohol,
         amargor=datos.amargor,
+        dias_fermentacion=datos.dias_fermentacion,
+        intervalo_horas=datos.intervalo_horas,
         parent_id=datos.parent_id,
         usuario_id=usuario_id
     )
@@ -89,6 +91,8 @@ def editar_cerveza(db: Session, cerveza_id: int, datos: CervezaCreate, usuario_i
     cerveza.litros = datos.litros
     cerveza.alcohol = datos.alcohol
     cerveza.amargor = datos.amargor
+    cerveza.dias_fermentacion = datos.dias_fermentacion
+    cerveza.intervalo_horas = datos.intervalo_horas
 
     from app.models.ingrediente import CervezaIngrediente
     from app.models.paso import Paso
