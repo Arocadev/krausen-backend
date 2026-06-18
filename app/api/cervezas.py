@@ -55,6 +55,32 @@ def tiene_forks(cerveza_id: int, db: Session = Depends(get_db)):
     total = db.query(Cerveza).filter(Cerveza.parent_id == cerveza_id).count()
     return {"tiene_forks": total > 0, "total_forks": total}
 
+@router.get("/arbol/{cerveza_id}")
+def arbol_forks(cerveza_id: int, db: Session = Depends(get_db)):
+    cerveza = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.id == cerveza_id).first()
+    if not cerveza:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=404, detail="Cerveza no encontrada")
+
+    raiz = cerveza
+    while raiz.parent_id:
+        raiz = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.id == raiz.parent_id).first()
+        if not raiz:
+            break
+
+    def construir_arbol(nodo_id):
+        nodo = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.id == nodo_id).first()
+        hijos = db.query(Cerveza).filter(Cerveza.parent_id == nodo_id).all()
+        return {
+            "id": nodo.id,
+            "nombre": nodo.nombre,
+            "username": nodo.usuario.username if nodo.usuario else None,
+            "es_actual": nodo.id == cerveza_id,
+            "hijos": [construir_arbol(h.id) for h in hijos]
+        }
+
+    return construir_arbol(raiz.id)
+
 @router.put("/{cerveza_id}")
 def editar_cerveza_endpoint(
     cerveza_id: int,
