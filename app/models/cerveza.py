@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, Text, Boolean
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.models.base import Base
@@ -18,6 +18,7 @@ class Cerveza(Base):
     created_at = Column(DateTime, server_default=func.now())
     dias_fermentacion = Column(Integer, nullable=True)
     intervalo_horas = Column(Integer, nullable=True)
+    activa = Column(Boolean, default=True, nullable=False, server_default="true")
 
     usuario = relationship("Usuario", back_populates="cervezas")
     parent = relationship("Cerveza", remote_side=[id])

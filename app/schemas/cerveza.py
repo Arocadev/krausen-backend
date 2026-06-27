@@ -55,6 +55,7 @@ class CervezaResponse(BaseModel):
     parent_id: Optional[int]
     usuario_id: int
     created_at: datetime
+    activa: bool
     ingredientes: List[CervezaIngredienteResponse] = []
     pasos: List[PasoResponse] = []
 

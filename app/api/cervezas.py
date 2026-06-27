@@ -1,6 +1,5 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session, joinedload
-from typing import List
 from app.models.base import get_db
 from app.models.usuario import Usuario
 from app.models.cerveza import Cerveza
@@ -16,9 +15,16 @@ def cerveza_con_username(cerveza):
     return data
 
 @router.get("/")
-def listar_cervezas(skip: int = 0, limit: int = 20, db: Session = Depends(get_db)):
-    cervezas = db.query(Cerveza).options(joinedload(Cerveza.usuario)).offset(skip).limit(limit).all()
-    return [cerveza_con_username(c) for c in cervezas]
+def listar_cervezas(skip: int = 0, limit: int = 12, db: Session = Depends(get_db)):
+    total = db.query(Cerveza).filter(Cerveza.activa == True).count()
+    cervezas = (
+        db.query(Cerveza)
+        .options(joinedload(Cerveza.usuario))
+        .filter(Cerveza.activa == True)
+        .order_by(Cerveza.created_at.desc())
+        .offset(skip).limit(limit).all()
+    )
+    return {"total": total, "cervezas": [cerveza_con_username(c) for c in cervezas]}
 
 @router.get("/buscar")
 def buscar_cervezas(
@@ -29,10 +35,10 @@ def buscar_cervezas(
     amargor_min: int = 0,
     amargor_max: int = 200,
     skip: int = 0,
-    limit: int = 50,
+    limit: int = 12,
     db: Session = Depends(get_db)
 ):
-    query = db.query(Cerveza).options(joinedload(Cerveza.usuario))
+    query = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.activa == True)
 
     if q:
         query = query.filter(Cerveza.nombre.ilike(f"%{q}%"))
@@ -47,8 +53,9 @@ def buscar_cervezas(
     if amargor_max < 200:
         query = query.filter(Cerveza.amargor <= amargor_max)
 
+    total = query.count()
     cervezas = query.order_by(Cerveza.created_at.desc()).offset(skip).limit(limit).all()
-    return [cerveza_con_username(c) for c in cervezas]
+    return {"total": total, "cervezas": [cerveza_con_username(c) for c in cervezas]}
 
 @router.get("/tiene-forks/{cerveza_id}")
 def tiene_forks(cerveza_id: int, db: Session = Depends(get_db)):
@@ -59,7 +66,6 @@ def tiene_forks(cerveza_id: int, db: Session = Depends(get_db)):
 def arbol_forks(cerveza_id: int, db: Session = Depends(get_db)):
     cerveza = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.id == cerveza_id).first()
     if not cerveza:
-        from fastapi import HTTPException, status
         raise HTTPException(status_code=404, detail="Cerveza no encontrada")
 
     raiz = cerveza
@@ -81,24 +87,18 @@ def arbol_forks(cerveza_id: int, db: Session = Depends(get_db)):
 
     return construir_arbol(raiz.id)
 
-@router.put("/{cerveza_id}")
-def editar_cerveza_endpoint(
-    cerveza_id: int,
-    datos: CervezaCreate,
-    db: Session = Depends(get_db),
-    current_user: Usuario = Depends(get_current_user)
-):
-    from app.services.cerveza_service import editar_cerveza
-    cerveza = editar_cerveza(db, cerveza_id, datos, current_user.id)
-    cerveza = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.id == cerveza.id).first()
-    return cerveza_con_username(cerveza)
-
 @router.get("/mis-recetas")
 def mis_recetas(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    cervezas = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.usuario_id == current_user.id).all()
+    cervezas = (
+        db.query(Cerveza)
+        .options(joinedload(Cerveza.usuario))
+        .filter(Cerveza.usuario_id == current_user.id)
+        .order_by(Cerveza.created_at.desc())
+        .all()
+    )
     return [cerveza_con_username(c) for c in cervezas]
 
 @router.get("/me-gustan")
@@ -116,6 +116,21 @@ def recetas_que_me_gustan(
     )
     return [cerveza_con_username(c) for c in cervezas]
 
+@router.patch("/{cerveza_id}/activacion")
+def toggle_activacion(
+    cerveza_id: int,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    cerveza = db.query(Cerveza).filter(Cerveza.id == cerveza_id).first()
+    if not cerveza:
+        raise HTTPException(status_code=404, detail="Cerveza no encontrada")
+    if cerveza.usuario_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso")
+    cerveza.activa = not cerveza.activa
+    db.commit()
+    return {"activa": cerveza.activa}
+
 @router.get("/{cerveza_id}")
 def detalle_cerveza(cerveza_id: int, db: Session = Depends(get_db)):
     cerveza = db.query(Cerveza).options(
@@ -124,8 +139,19 @@ def detalle_cerveza(cerveza_id: int, db: Session = Depends(get_db)):
         joinedload(Cerveza.pasos)
     ).filter(Cerveza.id == cerveza_id).first()
     if not cerveza:
-        from fastapi import HTTPException, status
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Cerveza no encontrada")
+        raise HTTPException(status_code=404, detail="Cerveza no encontrada")
+    return cerveza_con_username(cerveza)
+
+@router.put("/{cerveza_id}")
+def editar_cerveza_endpoint(
+    cerveza_id: int,
+    datos: CervezaCreate,
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    from app.services.cerveza_service import editar_cerveza
+    cerveza = editar_cerveza(db, cerveza_id, datos, current_user.id)
+    cerveza = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.id == cerveza.id).first()
     return cerveza_con_username(cerveza)
 
 @router.post("/", status_code=201)
@@ -145,9 +171,23 @@ def fork_cerveza(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
+    from app.models.notificacion import Notificacion
+
     datos.parent_id = cerveza_id
     cerveza = crear_cerveza(db, datos, current_user.id)
     cerveza = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.id == cerveza.id).first()
+
+    # Notificación al dueño del original (si no es el mismo usuario)
+    original = db.query(Cerveza).filter(Cerveza.id == cerveza_id).first()
+    if original and original.usuario_id != current_user.id:
+        db.add(Notificacion(
+            usuario_id=original.usuario_id,
+            actor_id=current_user.id,
+            tipo="fork",
+            cerveza_id=cerveza_id
+        ))
+        db.commit()
+
     return cerveza_con_username(cerveza)
 
 @router.delete("/{cerveza_id}", status_code=204)
