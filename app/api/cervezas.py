@@ -1,5 +1,6 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
+import uuid, os, shutil
 from app.models.base import get_db
 from app.models.usuario import Usuario
 from app.models.cerveza import Cerveza
@@ -13,6 +14,38 @@ def cerveza_con_username(cerveza):
     data = CervezaResponse.model_validate(cerveza).model_dump()
     data["username"] = cerveza.usuario.username if cerveza.usuario else None
     return data
+
+@router.post("/{cerveza_id}/imagen", status_code=200)
+async def subir_imagen(
+    cerveza_id: int,
+    imagen: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: Usuario = Depends(get_current_user)
+):
+    cerveza = db.query(Cerveza).filter(Cerveza.id == cerveza_id).first()
+    if not cerveza:
+        raise HTTPException(status_code=404, detail="Cerveza no encontrada")
+    if cerveza.usuario_id != current_user.id:
+        raise HTTPException(status_code=403, detail="No tienes permiso")
+
+    extension = imagen.filename.split(".")[-1].lower()
+    if extension not in ["jpg", "jpeg", "png", "webp"]:
+        raise HTTPException(status_code=400, detail="Formato no permitido. Usa JPG, PNG o WebP.")
+
+    nombre_archivo = f"{uuid.uuid4()}.{extension}"
+    ruta = f"uploads/cervezas/{nombre_archivo}"
+
+    with open(ruta, "wb") as f:
+        shutil.copyfileobj(imagen.file, f)
+
+    if cerveza.imagen_url:
+        ruta_anterior = cerveza.imagen_url.lstrip("/")
+        if os.path.exists(ruta_anterior):
+            os.remove(ruta_anterior)
+
+    cerveza.imagen_url = f"/uploads/cervezas/{nombre_archivo}"
+    db.commit()
+    return {"imagen_url": cerveza.imagen_url}
 
 @router.get("/")
 def listar_cervezas(skip: int = 0, limit: int = 12, db: Session = Depends(get_db)):
@@ -34,6 +67,8 @@ def buscar_cervezas(
     alcohol_max: float = 100,
     amargor_min: int = 0,
     amargor_max: int = 200,
+    ingrediente: str = "",
+    autor: str = "",
     skip: int = 0,
     limit: int = 12,
     db: Session = Depends(get_db)
@@ -52,6 +87,14 @@ def buscar_cervezas(
         query = query.filter(Cerveza.amargor >= amargor_min)
     if amargor_max < 200:
         query = query.filter(Cerveza.amargor <= amargor_max)
+    if ingrediente:
+        from app.models.ingrediente import Ingrediente, CervezaIngrediente
+        query = query.join(CervezaIngrediente, Cerveza.id == CervezaIngrediente.cerveza_id)\
+                     .join(Ingrediente, CervezaIngrediente.ingrediente_id == Ingrediente.id)\
+                     .filter(Ingrediente.nombre.ilike(f"%{ingrediente}%"))
+    if autor:
+        query = query.join(Usuario, Cerveza.usuario_id == Usuario.id)\
+                     .filter(Usuario.username.ilike(f"%{autor}%"))
 
     total = query.count()
     cervezas = query.order_by(Cerveza.created_at.desc()).offset(skip).limit(limit).all()
@@ -177,7 +220,6 @@ def fork_cerveza(
     cerveza = crear_cerveza(db, datos, current_user.id)
     cerveza = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.id == cerveza.id).first()
 
-    # Notificación al dueño del original (si no es el mismo usuario)
     original = db.query(Cerveza).filter(Cerveza.id == cerveza_id).first()
     if original and original.usuario_id != current_user.id:
         db.add(Notificacion(

@@ -19,6 +19,7 @@ class Cerveza(Base):
     dias_fermentacion = Column(Integer, nullable=True)
     intervalo_horas = Column(Integer, nullable=True)
     activa = Column(Boolean, default=True, nullable=False, server_default="true")
+    imagen_url = Column(String(255), nullable=True)
 
     usuario = relationship("Usuario", back_populates="cervezas")
     parent = relationship("Cerveza", remote_side=[id])

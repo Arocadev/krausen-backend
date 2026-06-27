@@ -1,7 +1,9 @@
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
+import os
 from app.api.auth import router as auth_router
 from app.api.cervezas import router as cervezas_router
 from app.api.ingredientes import router as ingredientes_router
@@ -11,8 +13,11 @@ from app.api.perfil import router as perfil_router
 from app.api.temperaturas import router as temperaturas_router
 from app.api.notificaciones import router as notificaciones_router
 from app.api.comentarios import router as comentarios_router
+from app.api.perfiles_publicos import router as perfiles_publicos_router
 
 load_dotenv()
+
+os.makedirs("uploads/cervezas", exist_ok=True)
 
 app = FastAPI(
     title="Krausen API",
@@ -28,6 +33,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 app.include_router(auth_router)
 app.include_router(cervezas_router)
 app.include_router(ingredientes_router)
@@ -37,6 +44,7 @@ app.include_router(perfil_router)
 app.include_router(temperaturas_router)
 app.include_router(notificaciones_router)
 app.include_router(comentarios_router)
+app.include_router(perfiles_publicos_router)
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
