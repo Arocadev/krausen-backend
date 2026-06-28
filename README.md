@@ -13,15 +13,19 @@
 ### ✨ Funcionalidades
 
 - 🔐 **Autenticación JWT** — registro, login, cambio de contraseña, encriptación BCrypt
-- 👥 **Gestión de usuarios** — roles USER y ADMIN, perfil de usuario
+- 🔑 **Recuperación de contraseña** — envío de email con Resend, tokens de reset con expiración
+- 👥 **Gestión de usuarios** — roles USER y ADMIN, perfil público y privado
 - 🍺 **Gestión de cervezas** — CRUD completo, búsqueda con filtros por nombre, estilo, alcohol e IBU
 - 🔀 **Sistema de forks** — crea tu propia versión de cualquier receta, con árbol de versiones
 - ❤️ **Me gusta** — sistema de likes con bloqueo de autovaloración
-- 🏆 **Ranking mensual** — las recetas más gustadas del mes
+- 🏆 **Ranking** — top 10 mensual, anual y global por me gustas
+- 💬 **Comentarios** — comentarios por receta con avatares Dicebear
+- 🔔 **Notificaciones** — notificaciones de me gustas y forks con badge en navbar
 - 🌡️ **Registro de temperaturas** — seguimiento de fermentación con intervalos configurables
 - 🧪 **Ingredientes predefinidos** — lista curada de maltas, lúpulos, levaduras y adjuntos
 - 📝 **Pasos de elaboración** — instrucciones ordenadas con duración estimada
 - ✏️ **Edición controlada** — editar receta solo si no tiene forks derivados
+- 🛡️ **Seguridad** — rate limiting, headers HTTP de seguridad, sanitización de inputs
 - 📖 **Documentación automática** — Swagger / OpenAPI disponible en `/docs`
 
 ---
@@ -36,6 +40,7 @@
 | Migraciones | Alembic |
 | Base de datos | PostgreSQL 16 |
 | Validación | Pydantic v2 |
+| Email | Resend |
 | Despliegue | Docker + Docker Compose |
 
 ---
@@ -45,24 +50,29 @@
 ```
 app/
 ├── api/            # Endpoints REST
-│   ├── auth.py          # Registro y login
-│   ├── cervezas.py      # CRUD cervezas, forks, búsqueda, árbol
-│   ├── ingredientes.py  # Gestión de ingredientes
-│   ├── valoraciones.py  # Sistema de me gusta
-│   ├── ranking.py       # Ranking mensual por likes
-│   ├── temperaturas.py  # Registro de fermentación
-│   └── perfil.py        # Perfil y cambio de contraseña
+│   ├── auth.py              # Registro, login, recuperación de contraseña
+│   ├── cervezas.py          # CRUD cervezas, forks, búsqueda, árbol
+│   ├── ingredientes.py      # Gestión de ingredientes
+│   ├── valoraciones.py      # Sistema de me gusta
+│   ├── ranking.py           # Ranking mensual, anual y global
+│   ├── temperaturas.py      # Registro de fermentación
+│   ├── comentarios.py       # Comentarios por receta
+│   ├── notificaciones.py    # Notificaciones de likes y forks
+│   ├── perfiles_publicos.py # Perfil público de usuarios
+│   └── perfil.py            # Perfil privado y cambio de contraseña
 ├── core/           # Seguridad y configuración
 │   ├── security.py      # JWT, BCrypt, tokens
 │   ├── deps.py          # Dependencias (auth, roles)
 │   └── seed.py          # Datos iniciales de ingredientes
 ├── models/         # Entidades SQLAlchemy
-│   ├── usuario.py       # Usuario con roles
+│   ├── usuario.py       # Usuario con roles y reset token
 │   ├── cerveza.py       # Receta con fork (parent_id)
 │   ├── ingrediente.py   # Ingrediente + tabla intermedia
 │   ├── paso.py          # Pasos de elaboración
 │   ├── valoracion.py    # Me gusta (MeGusta)
-│   └── temperatura.py   # Registro de temperaturas
+│   ├── temperatura.py   # Registro de temperaturas
+│   ├── comentario.py    # Comentarios
+│   └── notificacion.py  # Notificaciones
 ├── schemas/        # DTOs con Pydantic
 │   ├── usuario.py       # Create, Login, Response, Token
 │   └── cerveza.py       # Create, Response, ingredientes, pasos
@@ -82,6 +92,8 @@ app/
 |--------|------|-------------|
 | POST | `/api/auth/registro` | Registro de usuario |
 | POST | `/api/auth/login` | Login con JWT |
+| POST | `/api/auth/solicitar-recuperacion` | Solicitar reset de contraseña |
+| POST | `/api/auth/reset-password` | Restablecer contraseña |
 | GET | `/api/cervezas/` | Listar todas las cervezas |
 | GET | `/api/cervezas/buscar` | Buscar con filtros |
 | POST | `/api/cervezas/` | Crear cerveza |
@@ -91,6 +103,13 @@ app/
 | POST | `/api/cervezas/{id}/me-gusta` | Dar me gusta |
 | DELETE | `/api/cervezas/{id}/me-gusta` | Quitar me gusta |
 | GET | `/api/ranking/mensual` | Top 10 del mes |
+| GET | `/api/ranking/anual` | Top 10 del año |
+| GET | `/api/ranking/global` | Top 10 global |
+| GET | `/api/cervezas/{id}/comentarios` | Listar comentarios |
+| POST | `/api/cervezas/{id}/comentarios` | Añadir comentario |
+| GET | `/api/notificaciones/` | Listar notificaciones |
+| PATCH | `/api/notificaciones/leer-todas` | Marcar todas como leídas |
+| GET | `/api/usuarios/{username}` | Perfil público de usuario |
 | POST | `/api/cervezas/{id}/temperaturas` | Registrar temperatura |
 | GET | `/api/cervezas/{id}/temperaturas` | Historial de temperaturas |
 | GET | `/api/perfil/` | Ver perfil |
@@ -117,7 +136,7 @@ Documentación completa en `/docs` (Swagger UI).
 
 ```bash
 # Clonar el repositorio
-git clone https://github.com/krausen-beer/krausen-backend
+git clone https://github.com/ArocaDev/krausen-backend
 cd krausen-backend
 
 # Crear entorno virtual
@@ -130,13 +149,16 @@ pip install -r requirements.txt
 
 # Configurar variables de entorno
 cp .env.example .env
-# Editar .env con tus credenciales
+# Editar .env con tus credenciales (DATABASE_URL, SECRET_KEY, RESEND_API_KEY)
 
 # Ejecutar migraciones
 alembic upgrade head
 
 # Cargar ingredientes iniciales
 python seed.py
+
+# Cargar recetas de demo
+python seed_recetas.py
 
 # Arrancar el servidor
 uvicorn app.main:app --reload
@@ -158,9 +180,8 @@ docker-compose up --build
 
 | Componente | Repositorio |
 |---|---|
-| Backend (este repo) | [krausen-backend](https://github.com/krausen-beer/krausen-backend) |
-| Frontend | [krausen-frontend](https://github.com/krausen-beer/krausen-frontend) |
-| Bot de Telegram | [audio-to-trello-bot](https://github.com/krausen-beer/audio-to-trello-bot) |
+| Backend (este repo) | [krausen-backend](https://github.com/ArocaDev/krausen-backend) |
+| Frontend | [krausen-frontend](https://github.com/ArocaDev/krausen-frontend) |
 
 ---
 
@@ -173,15 +194,19 @@ docker-compose up --build
 ### ✨ Features
 
 - 🔐 **JWT Authentication** — registration, login, password change, BCrypt encryption
-- 👥 **User management** — USER and ADMIN roles, user profile
+- 🔑 **Password recovery** — email sending with Resend, reset tokens with expiration
+- 👥 **User management** — USER and ADMIN roles, public and private profile
 - 🍺 **Beer management** — full CRUD, search with filters by name, style, ABV and IBU
 - 🔀 **Fork system** — create your own version of any recipe, with version tree
 - ❤️ **Likes** — like system with self-like prevention
-- 🏆 **Monthly ranking** — most liked recipes of the month
+- 🏆 **Ranking** — top 10 monthly, yearly and all-time by likes
+- 💬 **Comments** — comments per recipe with Dicebear avatars
+- 🔔 **Notifications** — like and fork notifications with navbar badge
 - 🌡️ **Temperature tracking** — fermentation monitoring with configurable intervals
 - 🧪 **Predefined ingredients** — curated list of malts, hops, yeasts and adjuncts
 - 📝 **Brewing steps** — ordered instructions with estimated duration
 - ✏️ **Controlled editing** — edit recipe only if it has no derived forks
+- 🛡️ **Security** — rate limiting, HTTP security headers, input sanitization
 - 📖 **Auto documentation** — Swagger / OpenAPI available at `/docs`
 
 ---
@@ -196,6 +221,7 @@ docker-compose up --build
 | Migrations | Alembic |
 | Database | PostgreSQL 16 |
 | Validation | Pydantic v2 |
+| Email | Resend |
 | Deployment | Docker + Docker Compose |
 
 ---
@@ -203,7 +229,7 @@ docker-compose up --build
 ### 🚀 Getting Started
 
 ```bash
-git clone https://github.com/krausen-beer/krausen-backend
+git clone https://github.com/ArocaDev/krausen-backend
 cd krausen-backend
 python -m venv venv
 source venv/bin/activate
@@ -211,6 +237,7 @@ pip install -r requirements.txt
 cp .env.example .env
 alembic upgrade head
 python seed.py
+python seed_recetas.py
 uvicorn app.main:app --reload
 ```
 
