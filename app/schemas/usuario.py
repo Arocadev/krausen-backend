@@ -1,11 +1,33 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, field_validator
 from datetime import datetime
 from app.models.usuario import Rol
+import re
 
 class UsuarioCreate(BaseModel):
     username: str
     email: EmailStr
     password: str
+
+    @field_validator("username")
+    @classmethod
+    def validar_username(cls, v):
+        v = v.strip()
+        if len(v) < 3:
+            raise ValueError("El username debe tener al menos 3 caracteres")
+        if len(v) > 50:
+            raise ValueError("El username no puede superar 50 caracteres")
+        if not re.match(r"^[a-zA-Z0-9_\-]+$", v):
+            raise ValueError("El username solo puede contener letras, números, guiones y guiones bajos")
+        return v
+
+    @field_validator("password")
+    @classmethod
+    def validar_password(cls, v):
+        if len(v) < 8:
+            raise ValueError("La contraseña debe tener al menos 8 caracteres")
+        if len(v) > 100:
+            raise ValueError("La contraseña no puede superar 100 caracteres")
+        return v
 
 class UsuarioLogin(BaseModel):
     email: EmailStr
