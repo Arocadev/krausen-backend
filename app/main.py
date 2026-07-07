@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from fastapi.exceptions import RequestValidationError
 from dotenv import load_dotenv
 import os
 import time
@@ -16,6 +17,8 @@ from app.api.temperaturas import router as temperaturas_router
 from app.api.notificaciones import router as notificaciones_router
 from app.api.comentarios import router as comentarios_router
 from app.api.perfiles_publicos import router as perfiles_publicos_router
+from app.core.exceptions import http_exception_handler, validation_exception_handler, global_exception_handler
+from fastapi import HTTPException
 
 load_dotenv()
 
@@ -30,8 +33,8 @@ app = FastAPI(
 # Rate limiting simple en memoria
 rate_limit_store: dict = defaultdict(list)
 RATE_LIMIT_ENDPOINTS = ["/api/auth/login", "/api/auth/registro", "/api/auth/solicitar-recuperacion"]
-RATE_LIMIT_MAX = 10      # máximo de peticiones
-RATE_LIMIT_WINDOW = 60   # en segundos
+RATE_LIMIT_MAX = 10
+RATE_LIMIT_WINDOW = 60
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
@@ -39,12 +42,11 @@ async def rate_limit_middleware(request: Request, call_next):
         ip = request.client.host
         ahora = time.time()
         ventana = rate_limit_store[ip]
-        # Limpiar peticiones fuera de la ventana
         rate_limit_store[ip] = [t for t in ventana if ahora - t < RATE_LIMIT_WINDOW]
         if len(rate_limit_store[ip]) >= RATE_LIMIT_MAX:
             return JSONResponse(
                 status_code=429,
-                content={"detail": "Demasiadas peticiones. Espera un momento antes de volver a intentarlo."}
+                content={"status": 429, "error": "Demasiadas peticiones", "detalle": "Espera un momento antes de volver a intentarlo."}
             )
         rate_limit_store[ip].append(ahora)
     response = await call_next(request)
@@ -68,6 +70,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.add_exception_handler(HTTPException, http_exception_handler)
+app.add_exception_handler(RequestValidationError, validation_exception_handler)
+app.add_exception_handler(Exception, global_exception_handler)
+
 app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 
 app.include_router(auth_router)
@@ -80,13 +86,6 @@ app.include_router(temperaturas_router)
 app.include_router(notificaciones_router)
 app.include_router(comentarios_router)
 app.include_router(perfiles_publicos_router)
-
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    return JSONResponse(
-        status_code=500,
-        content={"status": 500, "error": "Error interno del servidor", "mensaje": str(exc)}
-    )
 
 @app.get("/")
 def root():

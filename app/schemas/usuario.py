@@ -3,6 +3,7 @@ from datetime import datetime
 from app.models.usuario import Rol
 import re
 
+
 class UsuarioCreate(BaseModel):
     username: str
     email: EmailStr
@@ -29,9 +30,11 @@ class UsuarioCreate(BaseModel):
             raise ValueError("La contraseña no puede superar 100 caracteres")
         return v
 
+
 class UsuarioLogin(BaseModel):
     email: EmailStr
     password: str
+
 
 class UsuarioResponse(BaseModel):
     id: int
@@ -44,9 +47,39 @@ class UsuarioResponse(BaseModel):
     class Config:
         from_attributes = True
 
+
 class Token(BaseModel):
     access_token: str
     token_type: str
 
+
 class TokenData(BaseModel):
     email: str | None = None
+
+
+class SolicitarRecuperacion(BaseModel):
+    email: EmailStr
+
+
+class ResetearPassword(BaseModel):
+    token: str
+    password_nueva: str
+
+    @field_validator("token")
+    @classmethod
+    def validar_token(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError("El token no puede estar vacío")
+        if len(v) > 200:
+            raise ValueError("Token inválido")
+        return v
+
+    @field_validator("password_nueva")
+    @classmethod
+    def validar_password_nueva(cls, v):
+        if len(v) < 8:
+            raise ValueError("La contraseña debe tener al menos 8 caracteres")
+        if len(v) > 100:
+            raise ValueError("La contraseña no puede superar 100 caracteres")
+        return v

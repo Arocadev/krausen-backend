@@ -1,9 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
-from pydantic import BaseModel
 from app.models.base import get_db
 from app.models.usuario import Usuario
-from app.schemas.usuario import UsuarioCreate, UsuarioResponse, Token, UsuarioLogin
+from app.schemas.usuario import UsuarioCreate, UsuarioResponse, Token, UsuarioLogin, SolicitarRecuperacion, ResetearPassword
 from app.services.usuario_service import crear_usuario, login_usuario
 from app.core.security import hash_password
 import os
@@ -12,13 +11,6 @@ import secrets
 from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/api/auth", tags=["Autenticación"])
-
-class SolicitarRecuperacion(BaseModel):
-    email: str
-
-class ResetearPassword(BaseModel):
-    token: str
-    password_nueva: str
 
 @router.post("/registro", response_model=UsuarioResponse, status_code=201)
 def registro(datos: UsuarioCreate, db: Session = Depends(get_db)):
@@ -73,9 +65,6 @@ def reset_password(datos: ResetearPassword, db: Session = Depends(get_db)):
 
     if usuario.reset_token_expira < datetime.utcnow():
         raise HTTPException(status_code=400, detail="Token inválido o expirado")
-
-    if len(datos.password_nueva) < 8:
-        raise HTTPException(status_code=400, detail="La contraseña debe tener al menos 8 caracteres")
 
     usuario.password_hash = hash_password(datos.password_nueva)
     usuario.reset_token = None

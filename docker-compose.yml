@@ -1,5 +1,7 @@
 version: '3.8'
 
+name: krausen
+
 services:
   db:
     image: postgres:16
