@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import text
 import uuid, os, shutil
 from app.models.base import get_db
 from app.models.usuario import Usuario
@@ -107,28 +108,59 @@ def tiene_forks(cerveza_id: int, db: Session = Depends(get_db)):
 
 @router.get("/arbol/{cerveza_id}")
 def arbol_forks(cerveza_id: int, db: Session = Depends(get_db)):
-    cerveza = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.id == cerveza_id).first()
+    cerveza = db.query(Cerveza).filter(Cerveza.id == cerveza_id).first()
     if not cerveza:
         raise HTTPException(status_code=404, detail="Cerveza no encontrada")
 
-    raiz = cerveza
-    while raiz.parent_id:
-        raiz = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.id == raiz.parent_id).first()
-        if not raiz:
+    # Encontrar la raíz subiendo por parent_id
+    raiz_id = cerveza_id
+    actual = cerveza
+    visitados = set()
+    while actual.parent_id and actual.parent_id not in visitados:
+        visitados.add(actual.id)
+        padre = db.query(Cerveza).filter(Cerveza.id == actual.parent_id).first()
+        if not padre:
             break
+        actual = padre
+        raiz_id = actual.id
 
-    def construir_arbol(nodo_id):
-        nodo = db.query(Cerveza).options(joinedload(Cerveza.usuario)).filter(Cerveza.id == nodo_id).first()
-        hijos = db.query(Cerveza).filter(Cerveza.parent_id == nodo_id).all()
-        return {
-            "id": nodo.id,
-            "nombre": nodo.nombre,
-            "username": nodo.usuario.username if nodo.usuario else None,
-            "es_actual": nodo.id == cerveza_id,
-            "hijos": [construir_arbol(h.id) for h in hijos]
+    # CTE recursiva: una sola query para todo el árbol
+    cte_sql = text("""
+        WITH RECURSIVE arbol AS (
+            SELECT id, nombre, usuario_id, parent_id
+            FROM cervezas
+            WHERE id = :raiz_id
+            UNION ALL
+            SELECT c.id, c.nombre, c.usuario_id, c.parent_id
+            FROM cervezas c
+            INNER JOIN arbol a ON c.parent_id = a.id
+        )
+        SELECT arbol.id, arbol.nombre, arbol.parent_id, u.username
+        FROM arbol
+        JOIN usuarios u ON arbol.usuario_id = u.id
+    """)
+
+    filas = db.execute(cte_sql, {"raiz_id": raiz_id}).fetchall()
+    mapa = {
+        f.id: {
+            "id": f.id,
+            "nombre": f.nombre,
+            "parent_id": f.parent_id,
+            "username": f.username,
+            "es_actual": f.id == cerveza_id,
+            "hijos": []
         }
+        for f in filas
+    }
 
-    return construir_arbol(raiz.id)
+    raiz = None
+    for nodo in mapa.values():
+        if nodo["parent_id"] in mapa:
+            mapa[nodo["parent_id"]]["hijos"].append(nodo)
+        else:
+            raiz = nodo
+
+    return raiz if raiz else mapa.get(raiz_id)
 
 @router.get("/mis-recetas")
 def mis_recetas(

@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session, joinedload
-from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from pydantic import BaseModel, field_validator
 from app.models.base import get_db
 from app.models.usuario import Usuario
 from app.models.comentario import Comentario
@@ -10,6 +10,16 @@ router = APIRouter(prefix="/api/cervezas", tags=["Comentarios"])
 
 class ComentarioCreate(BaseModel):
     contenido: str
+
+    @field_validator("contenido")
+    @classmethod
+    def validar_contenido(cls, v):
+        v = v.strip()
+        if not v:
+            raise ValueError("El comentario no puede estar vacío")
+        if len(v) > 1000:
+            raise ValueError("El comentario no puede superar 1000 caracteres")
+        return v
 
 def comentario_a_dict(c: Comentario):
     return {
@@ -22,6 +32,7 @@ def comentario_a_dict(c: Comentario):
 
 @router.get("/{cerveza_id}/comentarios")
 def listar_comentarios(cerveza_id: int, db: Session = Depends(get_db)):
+    from sqlalchemy.orm import joinedload
     comentarios = (
         db.query(Comentario)
         .options(joinedload(Comentario.usuario))
@@ -38,17 +49,16 @@ def crear_comentario(
     db: Session = Depends(get_db),
     current_user: Usuario = Depends(get_current_user)
 ):
-    if not datos.contenido.strip():
-        raise HTTPException(status_code=400, detail="El comentario no puede estar vacío")
     comentario = Comentario(
         cerveza_id=cerveza_id,
         usuario_id=current_user.id,
-        contenido=datos.contenido.strip()
+        contenido=datos.contenido
     )
     db.add(comentario)
-    db.commit()
+    db.flush()
     db.refresh(comentario)
-    comentario = db.query(Comentario).options(joinedload(Comentario.usuario)).filter(Comentario.id == comentario.id).first()
+    comentario.usuario = current_user
+    db.commit()
     return comentario_a_dict(comentario)
 
 @router.delete("/{cerveza_id}/comentarios/{comentario_id}", status_code=204)
