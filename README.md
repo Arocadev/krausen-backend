@@ -153,7 +153,10 @@ uvicorn app.main:app --reload
 ## 🔑 Variables de entorno
 
 ```env
+# Local
 DATABASE_URL=postgresql://postgres:password@localhost:5432/krausen
+# Docker (usar 'db' en vez de 'localhost')
+DATABASE_URL=postgresql://postgres:password@db:5432/krausen
 POSTGRES_PASSWORD=password
 SECRET_KEY=
 ALGORITHM=HS256
