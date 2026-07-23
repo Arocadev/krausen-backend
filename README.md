@@ -2,12 +2,11 @@
 
 # Krausen — Backend
 
-**API REST para plataforma de recetas de cerveza artesanal**
+**API REST para la plataforma de recetas de cerveza artesanal**
 
-[![Python](https://img.shields.io/badge/Python-3.14-blue?logo=python)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-latest-green?logo=fastapi)](https://fastapi.tiangolo.com)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green?logo=fastapi)](https://fastapi.tiangolo.com)
+[![Python](https://img.shields.io/badge/Python-3.11-blue?logo=python)](https://python.org)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-16-blue?logo=postgresql)](https://postgresql.org)
-[![SQLAlchemy](https://img.shields.io/badge/SQLAlchemy-2.0-red)](https://sqlalchemy.org)
 [![Docker](https://img.shields.io/badge/Docker-ready-blue?logo=docker)](https://docker.com)
 
 </div>
@@ -16,150 +15,136 @@
 
 ## ¿Qué es Krausen?
 
-Krausen es el backend de una plataforma comunitaria para compartir, descubrir y versionar recetas de cerveza artesanal. El nombre hace referencia a la espuma que se forma durante la fermentación. La API gestiona autenticación, recetas, forks, me gustas, comentarios, notificaciones y seguimiento de fermentación.
+Krausen es una plataforma de recetas de cerveza artesanal donde los usuarios pueden publicar sus elaboraciones, hacer versiones (forks) de recetas existentes, registrar temperaturas de fermentación y valorar las recetas de la comunidad. Este repositorio contiene el backend — la API REST construida con FastAPI.
+
+🍺 **Frontend:** [github.com/ArocaDev/krausen-frontend](https://github.com/ArocaDev/krausen-frontend)
 
 ---
 
 ## ✨ Funcionalidades
 
-- 🔐 **Autenticación JWT** — registro, login, cambio de contraseña con BCrypt
-- 🔑 **Recuperación de contraseña** — email con Resend, tokens de reset con expiración
-- 👥 **Gestión de usuarios** — roles USER y ADMIN, perfil público y privado
-- 🍺 **Gestión de cervezas** — CRUD completo, búsqueda con filtros por nombre, estilo, alcohol, IBU, ingrediente y autor
-- 🔀 **Sistema de forks** — versionar cualquier receta, con árbol de versiones por CTE recursiva
-- ❤️ **Me gusta** — likes con bloqueo de autovaloración y notificación automática
-- 🏆 **Ranking** — top 10 mensual, anual y global por me gustas
-- 💬 **Comentarios** — comentarios por receta
-- 🔔 **Notificaciones** — me gustas y forks con badge en navbar
-- 🌡️ **Registro de temperaturas** — seguimiento de fermentación con intervalos configurables
-- 🧪 **47 ingredientes precargados** — maltas, lúpulos, levaduras y adjuntos
-- 📝 **Pasos de elaboración** — instrucciones ordenadas con duración estimada
-- ✏️ **Edición controlada** — solo editable si no tiene forks derivados
-- 🛡️ **Seguridad** — rate limiting, headers HTTP, sanitización, validaciones Pydantic completas
-- ⚡ **Consultas optimizadas** — CTE recursiva en árbol de forks, queries fusionadas, joinedload contra N+1
-- 📖 **Documentación automática** — Swagger / OpenAPI en `/docs`
+- **Autenticación JWT** con access token (30 min) y refresh token (7 días)
+- **Recetas** — CRUD completo con ingredientes, pasos, estilo, alcohol, IBU y volumen
+- **Sistema de forks** — cualquier receta puede ser versionada; el árbol de versiones se construye con una CTE recursiva en PostgreSQL
+- **Fermentación** — registro de temperaturas por intervalos configurables (cada N horas durante X días)
+- **Me gustas** — un me gusta por usuario por receta
+- **Ranking** — top recetas por mes, año y global calculado en tiempo real
+- **Notificaciones** — al recibir un me gusta o fork
+- **Comentarios** — por receta con gestión de permisos
+- **Perfiles públicos** — recetas y me gustas de cada usuario
+- **Recuperación de contraseña** vía email con Resend
+- **Rate limiting** en endpoints de autenticación
+- **i18n** — respuestas de error en ES/EN/DE según header `Accept-Language`
 
 ---
 
-## 🛠️ Stack tecnológico
+## 🗂️ Diagramas
+
+### Arquitectura del sistema
+![Arquitectura](assets/krausen_arquitectura.svg)
+
+### Flujo JWT
+![JWT](assets/krausen_jwt.svg)
+
+### Sistema de forks
+![Fork](assets/krausen_fork.svg)
+
+---
+
+## 🛠️ Stack técnico
 
 | Capa | Tecnología |
 |------|-----------|
-| Framework | Python 3.14 + FastAPI |
-| Seguridad | JWT (python-jose) + BCrypt |
-| ORM | SQLAlchemy 2.0 |
+| Framework | FastAPI 0.115 + Python 3.11 |
+| Base de datos | PostgreSQL 16 + SQLAlchemy 2 |
 | Migraciones | Alembic |
-| Base de datos | PostgreSQL 16 |
-| Validación | Pydantic v2 |
+| Auth | JWT (python-jose) + bcrypt |
 | Email | Resend |
 | Contenedores | Docker + Docker Compose |
+| Documentación | Swagger UI / ReDoc (auto) |
 
 ---
 
 ## 📁 Estructura del proyecto
 
 ```
-app/
-├── api/
-│   ├── auth.py              # Registro, login, recuperación de contraseña
-│   ├── cervezas.py          # CRUD, forks, búsqueda, árbol CTE
-│   ├── ingredientes.py      # Catálogo de ingredientes
-│   ├── valoraciones.py      # Me gusta
-│   ├── ranking.py           # Ranking mensual, anual y global
-│   ├── temperaturas.py      # Seguimiento de fermentación
-│   ├── comentarios.py       # Comentarios por receta
-│   ├── notificaciones.py    # Notificaciones
-│   ├── perfiles_publicos.py # Perfil público
-│   └── perfil.py            # Perfil privado y cambio de contraseña
-├── core/
-│   ├── security.py          # JWT, BCrypt, tokens
-│   ├── deps.py              # Dependencias de autenticación
-│   ├── exceptions.py        # Exception handlers centralizados
-│   └── seed.py              # Datos iniciales de ingredientes
-├── models/                  # Entidades SQLAlchemy
-├── schemas/                 # DTOs Pydantic con validaciones completas
-├── services/                # Lógica de negocio
-└── main.py                  # Punto de entrada FastAPI
+krausen-backend/
+├── app/
+│   ├── api/
+│   │   ├── auth.py
+│   │   ├── cervezas.py
+│   │   ├── comentarios.py
+│   │   ├── ingredientes.py
+│   │   ├── notificaciones.py
+│   │   ├── perfil.py
+│   │   ├── perfiles_publicos.py
+│   │   ├── ranking.py
+│   │   ├── temperaturas.py
+│   │   └── valoraciones.py
+│   ├── core/
+│   │   ├── deps.py
+│   │   ├── exceptions.py
+│   │   └── security.py
+│   └── models/
+│       ├── base.py
+│       ├── cerveza.py
+│       ├── comentario.py
+│       ├── ingrediente.py
+│       ├── me_gusta.py
+│       ├── notificacion.py
+│       ├── registro_temperatura.py
+│       └── usuario.py
+├── alembic/
+│   └── versions/
+├── assets/
+│   ├── krausen_arquitectura.svg
+│   ├── krausen_jwt.svg
+│   └── krausen_fork.svg
+├── create_users.py
+├── seed.py
+├── seed_recetas.py
+├── docker-compose.yml
+├── Dockerfile
+├── .env.example
+└── requirements.txt
 ```
 
 ---
 
-## 🔗 Endpoints destacados
-
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| POST | `/api/auth/registro` | Registro de usuario |
-| POST | `/api/auth/login` | Login con JWT |
-| POST | `/api/auth/solicitar-recuperacion` | Solicitar reset de contraseña |
-| POST | `/api/auth/reset-password` | Restablecer contraseña |
-| GET | `/api/cervezas/` | Listar cervezas |
-| GET | `/api/cervezas/buscar` | Buscar con filtros |
-| POST | `/api/cervezas/` | Crear cerveza |
-| PUT | `/api/cervezas/{id}` | Editar cerveza |
-| POST | `/api/cervezas/{id}/fork` | Crear versión |
-| GET | `/api/cervezas/arbol/{id}` | Árbol de forks (CTE recursiva) |
-| POST | `/api/cervezas/{id}/me-gusta` | Dar me gusta |
-| DELETE | `/api/cervezas/{id}/me-gusta` | Quitar me gusta |
-| GET | `/api/ranking/mensual` | Top 10 del mes |
-| GET | `/api/ranking/anual` | Top 10 del año |
-| GET | `/api/ranking/global` | Top 10 global |
-| GET | `/api/cervezas/{id}/comentarios` | Listar comentarios |
-| POST | `/api/cervezas/{id}/comentarios` | Añadir comentario |
-| GET | `/api/notificaciones/` | Listar notificaciones |
-| PATCH | `/api/notificaciones/leer-todas` | Marcar todas como leídas |
-| GET | `/api/usuarios/{username}` | Perfil público |
-| POST | `/api/cervezas/{id}/temperaturas` | Registrar temperatura |
-| GET | `/api/perfil/` | Ver perfil privado |
-| PUT | `/api/perfil/password` | Cambiar contraseña |
-
-Documentación completa en `/docs` (Swagger UI).
-
----
-
-## 🧪 Ingredientes iniciales
-
-47 ingredientes precargados organizados por tipo:
-
-| Tipo | Cantidad | Ejemplos |
-|------|----------|----------|
-| Malta | 12 | Pilsner, Pale Ale, Chocolate, Trigo... |
-| Lúpulo | 12 | Cascade, Citra, Saaz, Mosaic... |
-| Levadura | 7 | Ale Americana, Lager, Belga, Kveik... |
-| Adjunto | 16 | Café, Cacao, Miel, Vainilla, Frambuesa... |
-
----
-
-## 🚀 Instalación y arranque
+## 🚀 Instalación con Docker (recomendado)
 
 ```bash
-git clone https://github.com/ArocaDev/krausen-backend
+git clone https://github.com/ArocaDev/krausen-backend.git
 cd krausen-backend
-
-python -m venv venv
-venv\Scripts\activate       # Windows
-source venv/bin/activate    # Mac/Linux
-
-pip install -r requirements.txt
-
 cp .env.example .env
 # Edita .env con tus credenciales
+docker compose up --build -d
+docker compose exec backend alembic upgrade head
+docker compose exec backend python create_users.py
+docker compose exec backend python seed.py
+docker compose exec backend python seed_recetas.py
+```
 
+API disponible en `http://localhost:8000`  
+Swagger en `http://localhost:8000/docs`
+
+---
+
+## 🚀 Instalación local
+
+```bash
+git clone https://github.com/ArocaDev/krausen-backend.git
+cd krausen-backend
+python -m venv venv
+source venv/bin/activate      # Mac/Linux
+venv\Scripts\activate         # Windows
+pip install -r requirements.txt
+cp .env.example .env
+# Edita .env con tus credenciales
 alembic upgrade head
 python create_users.py
 python seed.py
 python seed_recetas.py
-
-uvicorn app.main:app --reload
-```
-
-API disponible en `http://127.0.0.1:8000` · Swagger en `http://127.0.0.1:8000/docs`
-
----
-
-## 🐳 Docker
-
-```bash
-docker compose up db -d
 uvicorn app.main:app --reload
 ```
 
@@ -170,26 +155,59 @@ uvicorn app.main:app --reload
 ```env
 DATABASE_URL=postgresql://postgres:password@localhost:5432/krausen
 POSTGRES_PASSWORD=password
-SECRET_KEY=tu_secret_key
+SECRET_KEY=
 ALGORITHM=HS256
-ACCESS_TOKEN_EXPIRE_MINUTES=10080
-RESEND_API_KEY=tu_resend_key
+ACCESS_TOKEN_EXPIRE_MINUTES=30
+RESEND_API_KEY=re_...
 ```
 
 ---
 
-## 🔗 Repositorios del proyecto
+## 📡 Endpoints principales
 
-| Componente | Repositorio |
-|---|---|
-| Backend (este repo) | [krausen-backend](https://github.com/ArocaDev/krausen-backend) |
-| Frontend | [krausen-frontend](https://github.com/ArocaDev/krausen-frontend) |
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| POST | `/api/auth/registro` | Crear cuenta |
+| POST | `/api/auth/login` | Login → JWT |
+| POST | `/api/auth/refresh` | Renovar token |
+| GET | `/api/cervezas` | Listar recetas con filtros |
+| POST | `/api/cervezas` | Crear receta |
+| GET | `/api/cervezas/{id}` | Detalle de receta |
+| POST | `/api/cervezas/{id}/fork` | Hacer fork de una receta |
+| GET | `/api/cervezas/arbol/{id}` | Árbol de versiones (CTE recursiva) |
+| POST | `/api/cervezas/{id}/me-gusta` | Dar/quitar me gusta |
+| GET | `/api/temperaturas/{id}` | Registros de fermentación |
+| POST | `/api/temperaturas/{id}` | Añadir lectura de temperatura |
+| GET | `/api/ranking` | Top recetas (mes/año/global) |
+| GET | `/api/notificaciones` | Notificaciones del usuario |
+| GET | `/api/perfiles/{username}` | Perfil público |
+
+Documentación completa en `/docs` (Swagger) o `/redoc`.
+
+---
+
+## 🗺️ Roadmap
+
+- [x] Auth JWT con refresh token
+- [x] CRUD de recetas con ingredientes y pasos
+- [x] Sistema de forks con árbol recursivo (CTE PostgreSQL)
+- [x] Registro de temperaturas de fermentación
+- [x] Me gustas y ranking mensual/anual/global
+- [x] Notificaciones
+- [x] Comentarios
+- [x] Recuperación de contraseña con Resend
+- [x] Rate limiting
+- [x] Docker Compose
+- [x] i18n en errores (ES/EN/DE)
+- [ ] Tests unitarios
+- [ ] Despliegue en Railway
+
 
 ---
 
 ## 👤 Autor
 
-**Alejandro Rodríguez Calabuig**
+**Alejandro Rodríguez Calabuig**  
 [github.com/ArocaDev](https://github.com/ArocaDev) · [LinkedIn](https://www.linkedin.com/in/alejandro-rodriguez-calabuig-a871a1230)
 
 ---
