@@ -23,6 +23,7 @@ services:
       SECRET_KEY: ${SECRET_KEY}
       ALGORITHM: ${ALGORITHM}
       ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES}
+      RESEND_API_KEY: ${RESEND_API_KEY}
     depends_on:
       - db
 
